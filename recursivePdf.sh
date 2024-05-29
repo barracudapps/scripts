@@ -52,16 +52,6 @@ process_folder() {
     done
 }
 
-# Function to combine PDF files
-combine_pdfs() {
-    local output_file="$1"
-    shift
-    local pdf_files=("$@")
-    echo "Combining ${#pdf_files[@]} PDF files into $output_file"
-    gs -q -dNOPAUSE -dBATCH -sDEVICE=pdfwrite -sOutputFile="$output_file" "${pdf_files[@]}"
-    echo "Combined PDF created: $output_file"
-}
-
 # Check if the specified directory exists
 if [[ ! -d "$input_folder" ]]; then
     echo "The specified directory does not exist: $input_folder"
@@ -77,22 +67,13 @@ echo "PDF conversion completed."
 read -p "Do you want to combine the PDF files? (yes/no): " combine_response
 
 if [[ "$combine_response" == "yes" ]]; then
-    read -p "How many PDF files would you like to combine at a time? (Enter a number, or press enter to combine all): " file_count
-    pdf_files=($(find "$input_folder" -type f -name "*.pdf" | sort))
+    # Ask the user for the output file name
+    read -p "Enter the name of the combined PDF file: " combined_pdf_file
 
-    if [[ -z "$file_count" ]]; then
-        # Combine all PDF files
-        combine_pdfs "${pdf_files[@]}"
-    else
-        # Combine PDF files in batches
-        total_files=${#pdf_files[@]}
-        batch_index=1
-        for ((i = 0; i < total_files; i += file_count)); do
-            batch=("${pdf_files[@]:i:file_count}")
-            combine_pdfs "$input_folder/combined_file_batch_$batch_index.pdf" "${batch[@]}"
-            ((batch_index++))
-        done
-    fi
+    # Combine PDF files using Ghostscript (gs)
+    gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile="$input_folder/$combined_pdf_file" "$input_folder"/*.pdf
+
+    echo "PDF files combined into $input_folder/$combined_pdf_file"
 fi
 
 echo "Script completed."
