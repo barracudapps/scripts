@@ -43,6 +43,13 @@ Ce dossier contient des scripts utiles pour diverses tâches.
 - **Auteur :** Pierre LAMOTTE
 - **Date de création :** 16 SEPT 2024
 
+### 6. compressVideo.sh
+
+- **Description :** Réduit la taille d'un fichier vidéo donné en chemin relatif.
+- **Utilisation :** `sh ~/Documents/scripts/compressVideo.sh `
+- **Auteur :** Pierre LAMOTTE
+- **Date de création :** 18 SEPT 2024
+
 ## Notes d'utilisation
 
 - Assurez-vous d'avoir les droits d'exécution pour les scripts. Sinon, vous pouvez les ajouter avec la commande `chmod +x nom_du_script.sh`.
