@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
 
 ################################################################################
 # Script: 	accessOdooFilestore.sh
@@ -8,86 +10,162 @@
 # Date: 	23 JUN 2025
 ################################################################################
 
-# Get database name from argument
 db_name="$1"
+default_user="$USER"
+db_port="5432"
+query="SELECT store_fname, name FROM ir_attachment WHERE mimetype = 'application/pdf' AND store_fname IS NOT NULL ORDER BY create_date DESC;"
 
-# Check for argument
-if [ -z "$db_name" ]; then
-    echo "❌ Error: No database name provided."
-    echo "Usage: sh goToFilestore.sh [db_name]"
+if [ -z "${db_name:-}" ]; then
+    echo "❌ Usage: $0 <db_name>"
     exit 1
 fi
 
-# Initialize empty filestore base path
+# Detect bash version
+BASH_MAJOR_VERSION=$([ -n "${BASH_VERSINFO:-}" ] && echo "${BASH_VERSINFO[0]}" || echo "3")
+
+# Select psql
+if [ -x "/Applications/Postgres.app/Contents/Versions/latest/bin/psql" ]; then
+    echo "📦 Using Postgres.app's psql binary"
+    PSQL_BIN="/Applications/Postgres.app/Contents/Versions/latest/bin/psql"
+else
+    PSQL_BIN="psql"
+fi
+
+# Locate filestore
+echo "🧭 Locating filestore for '$db_name'..."
 filestore_base=""
-
-# Detect OS
-os_name=$(uname)
-
-# --- macOS-specific search ---
-if [[ "$os_name" == "Darwin" ]]; then
-    echo "🖥️ Detected macOS – scanning Application Support for Odoo..."
-    
-    mac_path="$HOME/Library/Application Support/Odoo"
-    
-    # Check if directory exists
-    if [ -d "$mac_path" ]; then
-        # Try to find 'filestore' inside
-        filestore_base=$(find "$mac_path" -type d -name filestore -maxdepth 3 -print 2>/dev/null | head -n 1)
-    fi
+if [[ "$(uname)" == "Darwin" ]]; then
+    filestore_base=$(find "$HOME/Library/Application Support/Odoo" -type d -name filestore -maxdepth 3 2>/dev/null | head -n 1)
 fi
+[ -z "$filestore_base" ] && [ -d "$HOME/.local/share/Odoo/filestore" ] && filestore_base="$HOME/.local/share/Odoo/filestore"
+[ -z "$filestore_base" ] && filestore_base=$(find "$HOME" -type d -name filestore 2>/dev/null | head -n 1)
 
-# --- If not found, fallback to standard ~/.local/share path ---
-if [ -z "$filestore_base" ]; then
-    echo "🔍 Falling back to ~/.local/share/Odoo/filestore..."
-    alt_path="$HOME/.local/share/Odoo/filestore"
-    if [ -d "$alt_path" ]; then
-        filestore_base="$alt_path"
-    fi
-fi
-
-# --- If still not found, try scanning home ---
-if [ -z "$filestore_base" ]; then
-    echo "⏳ Scanning ~ for 'filestore' directory... (may be slow)"
-    filestore_base=$(find "$HOME" -type d -name filestore -print 2>/dev/null | head -n 1)
-fi
-
-# --- Still not found ---
-if [ -z "$filestore_base" ]; then
-    echo "❌ Could not locate any 'filestore' directory."
+filestore_path="$filestore_base/$db_name"
+if [ -z "$filestore_base" ] || [ ! -d "$filestore_path" ]; then
+    echo "❌ Filestore not found for DB '$db_name'"
     exit 2
 fi
 
-# Final DB filestore path
-filestore_path="$filestore_base/$db_name"
+echo "✅ Filestore found: $filestore_path"
+echo ""
 
-# --- Check if DB filestore exists ---
-if [ -d "$filestore_path" ]; then
-    echo "✅ Filestore found for DB '$db_name':"
-    echo "$filestore_path"
-    echo ""
+# User choice
+echo "What would you like to do?"
+echo "  [1] Open in Terminal"
+echo "  [2] Open in Finder (macOS) / Files (Linux)"
+echo "  [3] Quit"
+read -rp "Enter your choice [1/2/3]: " user_choice
 
-    echo "What would you like to do?"
-    echo "  [1] Open in Terminal"
-    echo "  [2] Open in Finder"
-    echo "  [3] Quit"
-    read -p "Enter your choice [1/2/3]: " user_choice
-
-    case "$user_choice" in
-        1)
-            echo "Opening in Terminal..."
+case "$user_choice" in
+    1)
+        if [[ "$(uname)" == "Darwin" ]]; then
             open -a Terminal "$filestore_path"
-            ;;
-        2)
-            echo "Opening in Finder..."
+        else
+            gnome-terminal --working-directory="$filestore_path" &>/dev/null || x-terminal-emulator &
+        fi
+        ;;
+    2)
+        if [[ "$(uname)" == "Darwin" ]]; then
             open "$filestore_path"
-            ;;
-        *)
-            echo "Exiting without opening."
-            ;;
-    esac
-else
-    echo "❌ Filestore not found for database: $db_name"
-    echo "Searched path: $filestore_path"
+        else
+            xdg-open "$filestore_path" &>/dev/null
+        fi
+        ;;
+    *)
+        echo "👋 Exiting."
+        exit 0
+        ;;
+esac
+
+echo ""
+echo "📡 Querying database for PDF attachments..."
+results=$($PSQL_BIN -U "$default_user" -d "$db_name" -Atc "$query" 2>/dev/null || true)
+
+if [ -z "$results" ]; then
+    echo "🔐 PostgreSQL connection failed with default user."
+    read -rp "🔹 DB user: " db_user
+    read -srp "🔹 DB password: " db_pass
+    echo ""
+    read -rp "🔹 DB port (default 5432): " custom_port
+    db_port=${custom_port:-5432}
+    export PGPASSWORD="$db_pass"
+    results=$($PSQL_BIN -U "$db_user" -d "$db_name" -p "$db_port" -Atc "$query" 2>/dev/null || true)
+fi
+
+if [ -z "$results" ]; then
+    echo "❌ Unable to retrieve PDF attachments from database."
     exit 3
+fi
+
+echo ""
+echo "📂 PDF Attachments:"
+
+names=()
+paths=()
+
+while IFS='|' read -r store_fname readable_name; do
+    if [[ "$store_fname" == */* ]]; then
+        full_path="$filestore_path/$store_fname"
+    else
+        prefix="${store_fname:0:2}"
+        full_path="$filestore_path/$prefix/$store_fname"
+    fi
+    names+=("$readable_name")
+    paths+=("$full_path")
+done <<< "$results"
+
+echo ""
+echo "📁 Actions:"
+echo "  [1] Open one PDF"
+echo "  [2] Export one PDF"
+echo "  [3] Export ALL PDFs"
+echo "  [4] Quit"
+read -rp "Choose an action [1/2/3/4]: " action
+
+if [[ "$action" == "1" ]]; then
+    PS3="📥 Choose a PDF to open: "
+    select choice in "${names[@]}"; do
+        if [[ -z "$choice" ]]; then
+            echo "❌ Invalid selection."
+        else
+            idx=$((REPLY - 1))
+            src="${paths[$idx]}"
+            tmp_pdf="/tmp/${names[$idx]// /_}.pdf"
+            cp "$src" "$tmp_pdf"
+            echo "🚀 Opening: $tmp_pdf"
+            open "$tmp_pdf" 2>/dev/null || xdg-open "$tmp_pdf" || echo "⚠️ Open manually: $tmp_pdf"
+            break
+        fi
+    done
+
+elif [[ "$action" == "2" ]]; then
+    echo ""
+    read -rp "📂 Enter destination folder: " export_dir
+    mkdir -p "$export_dir"
+    PS3="📥 Choose a PDF to export: "
+    select choice in "${names[@]}"; do
+        if [[ -z "$choice" ]]; then
+            echo "❌ Invalid selection."
+        else
+            idx=$((REPLY - 1))
+            dest="$export_dir/${names[$idx]// /_}.pdf"
+            cp "${paths[$idx]}" "$dest"
+            echo "✅ Exported: $dest"
+            break
+        fi
+    done
+
+elif [[ "$action" == "3" ]]; then
+    echo ""
+    read -rp "📂 Enter destination folder for ALL PDFs: " export_all_dir
+    mkdir -p "$export_all_dir"
+    for i in "${!names[@]}"; do
+        filename="${names[$i]// /_}.pdf"
+        cp "${paths[$i]}" "$export_all_dir/$filename"
+        echo "✅ Exported: $filename"
+    done
+    echo "📁 All PDFs exported to: $export_all_dir"
+
+else
+    echo "👋 Exiting."
 fi
