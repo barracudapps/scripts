@@ -32,23 +32,30 @@ Ce dossier contient des scripts utiles pour diverses tâches.
 ### 4. convertReduceImg.sh
 
 - **Description :** Convertit et/ou réduit les images du répertoire courant.
-- **Utilisation :** `sh ~/Documents/scripts/convertReduceImg.sh `
+- **Utilisation :** `sh ~/Documents/scripts/convertReduceImg.sh`
 - **Auteur :** Pierre LAMOTTE
 - **Date de création :** 05 JUL 2024
 
 ### 5. reducePdfSize.sh
 
 - **Description :** Réduit la taille d'un fichier PDF donné en chemin relatif.
-- **Utilisation :** `sh ~/Documents/scripts/reducePdfSize.sh `
+- **Utilisation :** `sh ~/Documents/scripts/reducePdfSize.sh`
 - **Auteur :** Pierre LAMOTTE
 - **Date de création :** 16 SEPT 2024
 
 ### 6. compressVideo.sh
 
 - **Description :** Réduit la taille d'un fichier vidéo donné en chemin relatif.
-- **Utilisation :** `sh ~/Documents/scripts/compressVideo.sh `
+- **Utilisation :** `sh ~/Documents/scripts/compressVideo.sh`
 - **Auteur :** Pierre LAMOTTE
 - **Date de création :** 18 SEPT 2024
+
+### 7. accessOdooFilestore.sh
+
+- **Description :** Permet de localiser et d'accéder aux documents générés par une instance locale Odoo.
+- **Utilisation :** `sh ~/Documents/scripts/accessOdooFilestore.sh [db_name]`
+- **Auteur :** Pierre LAMOTTE
+- **Date de création :** 23 JUIN 2025
 
 ## Notes d'utilisation
 
