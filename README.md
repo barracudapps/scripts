@@ -34,7 +34,8 @@
 | alléger des PDF, des images, des vidéos | [`reducePdfSize.sh`](#reducepdfsizesh) · [`convertReduceImg.sh`](#convertreduceimgsh) · [`compressVideo.sh`](#compressvideosh) | `reducePdfSize.sh devis.pdf` |
 | savoir combien de temps j'ai passé par client | [`timesheet_git.sh`](#timesheet_gitsh) | `timesheet_git.sh --since 2026-10-01` |
 | ne rien oublier de commiter ce soir | [`git_status_all.sh`](#git_status_allsh) | `git_status_all.sh --fetch` |
-| libérer de la place | [`disk_report.sh`](#disk_reportsh) | `disk_report.sh --clean` |
+| libérer de la place (caches de dev, bases Odoo) | [`disk_report.sh`](#disk_reportsh) | `disk_report.sh --clean` |
+| retrouver les vieux fichiers oubliés | [`forgotten_files.py`](#forgotten_filespy) | `forgotten_files.py --clean` |
 | un contrôle automatique chaque lundi | [`maintenance.sh`](#maintenancesh) | `maintenance.sh --install 09:00` |
 | demander à toutes mes sessions Claude de sauver leur contexte | [`claude_sessions.sh`](#claude_sessionssh) | `claude_sessions.sh save --compact --wait` |
 
@@ -329,6 +330,22 @@ maintenance.sh                    # maintenant
 maintenance.sh --upgrade          # avec brew upgrade
 maintenance.sh --install 09:00 1  # chaque lundi à 9 h (launchd) ; --uninstall pour arrêter
 ```
+</details>
+
+<details id="forgotten_filespy">
+<summary><b><code>forgotten_files.py</code></b> — vieux fichiers oubliés et non essentiels</summary>
+
+Téléchargements anciens, installeurs (`.dmg`, `.pkg`, `.iso`…), gros fichiers jamais rouverts, dossiers régénérables de projets inactifs (`node_modules`, `.venv`, `build`…), vieilles captures d'écran, symboles de débogage iOS et sauvegardes d'iPhone, vieux journaux, Corbeille, applications non ouvertes depuis un an. L'âge correspond à la **dernière ouverture** connue de Spotlight.
+
+Lecture seule par défaut ; `--clean` affiche la liste détaillée de chaque catégorie puis propose tout / un par un / rien, et **déplace dans la Corbeille** (récupérable). Jamais touchés : dossiers clients (hors dossiers régénérables), iCloud, Dropbox, Google Drive, applications (signalées seulement).
+
+```bash
+forgotten_files.py                       # rapport
+forgotten_files.py --only big --days 365 --min-size 500
+forgotten_files.py --clean
+```
+
+Pour inclure la Corbeille et les sauvegardes d'iPhone : donner l'« Accès complet au disque » au terminal (Réglages > Confidentialité).
 </details>
 
 <details id="disk_reportsh">
