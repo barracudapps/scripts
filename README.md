@@ -2,21 +2,75 @@
 
 # 🧰 Scripts
 
-**Petits outils du quotidien pour développer sur Odoo, traiter des documents et garder un Mac en forme.**
+**Petits outils du quotidien pour garder un Mac en forme, protéger ses documents et développer sur Odoo.**
+
+*Une commande, un problème réglé. Rien n'est supprimé sans ton accord.*
 
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-000000?logo=apple&logoColor=white)
 ![Bash](https://img.shields.io/badge/bash-3.2%2B-4EAA25?logo=gnubash&logoColor=white)
 ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 ![uv](https://img.shields.io/badge/uv-managed-DE5FE9?logo=astral&logoColor=white)
 ![Odoo](https://img.shields.io/badge/Odoo-16%20→%2020-714B67?logo=odoo&logoColor=white)
+![Scripts](https://img.shields.io/badge/scripts-36-orange)
+![Corbeille](https://img.shields.io/badge/suppression-via%20la%20Corbeille-brightgreen)
 
-[Je veux…](#-je-veux) · [Démarrage](#-démarrage-rapide) · [Odoo](#-odoo) · [Documents](#-documents-et-médias) · [Système](#%EF%B8%8F-système-et-productivité) · [Notes](#-notes)
+[🩺 Quel est ton souci ?](#-quel-est-ton-souci-) · [🔎 Je veux…](#-je-veux) · [🚀 Démarrage](#-démarrage-rapide) · [🏠 Mac au quotidien](#-mac-au-quotidien) · [🛡️ Vie privée](#%EF%B8%8F-vie-privée-et-documents-sensibles) · [📄 Documents](#-documents-et-médias) · [🟣 Odoo](#-odoo) · [⚙️ Système](#%EF%B8%8F-système-et-productivité)
 
 </div>
 
 ---
 
+## 🩺 Quel est ton souci ?
+
+Suis la flèche qui te ressemble :
+
+```mermaid
+flowchart LR
+    Q{{😩 Mon Mac…}}
+    Q -->|est plein| P1[forgotten_files.py<br/>duplicates.py<br/>app_uninstall.py]
+    Q -->|rame au démarrage| P2[startup_items.py]
+    Q -->|va-t-il bien ?| P3[mac_health.sh]
+    Q -->|Internet rame| P4[net_check.sh]
+    D{{📤 Je dois envoyer…}}
+    D -->|ma carte d'identité| D1[id_watermark.py]
+    D -->|des photos, un PDF, un .docx| D2[strip_metadata.py]
+    F{{🖼️ Mes photos…}}
+    F -->|sont en vrac| F1[photo_rename.py]
+    F -->|sont en double| P1
+```
+
+> [!TIP]
+> **Le rituel du dimanche (5 minutes)** — chaque case est une commande :
+> - [ ] `mac_health.sh` : le bulletin de santé, avec une note sur 100
+> - [ ] `forgotten_files.py --clean` : les vieux fichiers oubliés partent à la Corbeille
+> - [ ] `duplicates.py --clean` : les doublons aussi
+> - [ ] `startup_items.py` : rien de louche ne se lance au démarrage ?
+> - [ ] vider la Corbeille 🗑️ … et profiter de la place retrouvée
+
 ## 🔎 Je veux…
+
+<details open>
+<summary><b>🏠 Au quotidien, pour tout le monde</b></summary>
+
+| Je veux… | Script | Exemple |
+|---|---|---|
+| savoir si mon Mac va bien (batterie, sauvegarde, sécurité…) | [`mac_health.sh`](#mac_healthsh) | `mac_health.sh` |
+| comprendre pourquoi Internet rame | [`net_check.sh`](#net_checksh) | `net_check.sh` |
+| retrouver les vieux fichiers oubliés | [`forgotten_files.py`](#forgotten_filespy) | `forgotten_files.py --clean` |
+| supprimer les fichiers en double | [`duplicates.py`](#duplicatespy) | `duplicates.py ~/Pictures --clean` |
+| désinstaller une app **et ses restes** | [`app_uninstall.py`](#app_uninstallpy) | `app_uninstall.py Zoom` |
+| voir ce qui se lance au démarrage | [`startup_items.py`](#startup_itemspy) | `startup_items.py --orphans` |
+| ranger mes photos par date | [`photo_rename.py`](#photo_renamepy) | `photo_rename.py ~/Pictures/Vacances --by-month` |
+| envoyer une pièce d'identité sans risque | [`id_watermark.py`](#id_watermarkpy) | `id_watermark.py cni.heic --to "Agence Dupont"` |
+| retirer la position GPS d'une photo avant de la partager | [`strip_metadata.py`](#strip_metadatapy) | `strip_metadata.py photo.heic` |
+| fusionner, découper, faire pivoter des PDF | [`pdf_tools.py`](#pdf_toolspy) | `pdf_tools.py extract contrat.pdf 1-3,7` |
+| rendre un scan interrogeable | [`pdf_ocr.sh`](#pdf_ocrsh) / [`pdf_tools.py scan`](#pdf_toolspy) | `pdf_tools.py scan facture.pdf` |
+| alléger des PDF, des images, des vidéos | [`reducePdfSize.sh`](#reducepdfsizesh) · [`convertReduceImg.sh`](#convertreduceimgsh) · [`compressVideo.sh`](#compressvideosh) | `reducePdfSize.sh devis.pdf` |
+
+</details>
+
+<details>
+<summary><b>🟣 Pour développer sur Odoo</b></summary>
 
 | Je veux… | Script | Exemple |
 |---|---|---|
@@ -29,21 +83,27 @@
 | partager une base sans données personnelles | [`odoo_anonymize.sh`](#odoo_anonymizesh) | `odoo_anonymize.sh acme-prod` |
 | montrer Odoo à un prospect | [`odoo_demo_share.sh`](#odoo_demo_sharesh) | `odoo_demo_share.sh` |
 | lancer les tests sur plusieurs bases en parallèle | [`odooTests.sh`](#odootestssh) | `odooTests.sh --threads 4` |
-| rendre un scan interrogeable | [`pdf_ocr.sh`](#pdf_ocrsh) / [`pdf_tools.py scan`](#pdf_toolspy) | `pdf_tools.py scan facture.pdf` |
-| fusionner, découper, faire pivoter des PDF | [`pdf_tools.py`](#pdf_toolspy) | `pdf_tools.py extract contrat.pdf 1-3,7` |
-| alléger des PDF, des images, des vidéos | [`reducePdfSize.sh`](#reducepdfsizesh) · [`convertReduceImg.sh`](#convertreduceimgsh) · [`compressVideo.sh`](#compressvideosh) | `reducePdfSize.sh devis.pdf` |
+
+</details>
+
+<details>
+<summary><b>⚙️ Pour le développeur organisé</b></summary>
+
+| Je veux… | Script | Exemple |
+|---|---|---|
 | savoir combien de temps j'ai passé par client | [`timesheet_git.sh`](#timesheet_gitsh) | `timesheet_git.sh --since 2026-10-01` |
 | ne rien oublier de commiter ce soir | [`git_status_all.sh`](#git_status_allsh) | `git_status_all.sh --fetch` |
 | libérer de la place (caches de dev, bases Odoo) | [`disk_report.sh`](#disk_reportsh) | `disk_report.sh --clean` |
-| retrouver les vieux fichiers oubliés | [`forgotten_files.py`](#forgotten_filespy) | `forgotten_files.py --clean` |
 | un contrôle automatique chaque lundi | [`maintenance.sh`](#maintenancesh) | `maintenance.sh --install 09:00` |
 | demander à toutes mes sessions Claude de sauver leur contexte | [`claude_sessions.sh`](#claude_sessionssh) | `claude_sessions.sh save --compact --wait` |
+
+</details>
 
 ## 🚀 Démarrage rapide
 
 ```bash
 # Outils utilisés par les scripts
-brew install uv ghostscript ffmpeg imagemagick jpegoptim optipng pngquant webp xmlstarlet tesseract tesseract-lang ngrok
+brew install uv exiftool ghostscript ffmpeg imagemagick jpegoptim optipng pngquant webp xmlstarlet tesseract tesseract-lang ngrok
 brew install --cask libreoffice postgres-app
 
 # Facultatif : appeler les scripts sans chemin (ajouter à ~/.bash_profile)
@@ -51,6 +111,164 @@ export PATH="$HOME/Documents/scripts:$PATH"
 ```
 
 Tous les scripts affichent leur aide avec `-h` (ou `--help`). Ceux qui posent des questions acceptent aussi le fichier ou le dossier en argument.
+
+---
+
+> [!IMPORTANT]
+> **La promesse** : les scripts « grand public » ne font **rien** sans `--clean` / `--apply` ou sans ta confirmation. Ce qui part va **dans la Corbeille** (récupérable), les originaux de documents ne sont jamais modifiés, et les dossiers clients, iCloud, Dropbox et Google Drive sont protégés.
+
+---
+
+## 🏠 Mac au quotidien
+
+<details id="mac_healthsh">
+<summary><b><code>mac_health.sh</code></b> — 🩺 le bulletin de santé du Mac, noté sur 100</summary>
+
+Batterie (cycles, capacité restante), sauvegarde Time Machine (moins de 7 jours ?), espace disque et état SMART, FileVault, pare-feu, SIP, Gatekeeper, mises à jour de sécurité automatiques, mises à jour macOS en attente, dernier redémarrage, pression mémoire. Lecture seule, sans mot de passe administrateur ; chaque point à corriger vient avec **la marche à suivre**.
+
+```text
+🔋 Battery
+  ✅ Maximum capacity 89% (303 cycles)
+💾 Backup
+  ❌ No Time Machine backup configured → plug an external disk and enable it in System Settings > …
+🔒 Security
+  ✅ FileVault on (disk encrypted)
+
+Score: 76/100  🟡 Good, a few things to do  (10/13 checks passed)
+```
+
+```bash
+mac_health.sh            # bilan complet (~20 s avec les mises à jour)
+mac_health.sh --quick    # sans la vérification des mises à jour
+```
+
+Intégré à [`maintenance.sh`](#maintenancesh) : les problèmes remontent dans la notification du lundi.
+</details>
+
+<details id="net_checksh">
+<summary><b><code>net_check.sh</code></b> — 📶 « Internet rame : c'est le Wi-Fi, la box ou le Mac ? »</summary>
+
+Teste chaque maillon dans l'ordre (signal Wi-Fi et bande 2,4/5 GHz → box → Internet par IP → DNS → accès web et portail captif d'hôtel ou de gare → débit et réactivité avec `networkQuality`, intégré à macOS), puis rend **un verdict en une phrase** : redémarrer la box, se rapprocher, changer de DNS, appeler le fournisseur… Ne modifie rien.
+
+```text
+4. Name resolution (DNS)
+  ❌ The DNS server 192.168.1.1 does not answer, a public one does
+Verdict
+  ➜ Internet works but names (websites) are not resolved: restart the box, or set the DNS to 1.1.1.1 …
+```
+
+```bash
+net_check.sh             # ~35 s avec le test de débit
+net_check.sh --quick     # sans le test de débit
+```
+</details>
+
+<details id="forgotten_filespy">
+<summary><b><code>forgotten_files.py</code></b> — 🕸️ vieux fichiers oubliés et non essentiels</summary>
+
+Téléchargements anciens, installeurs (`.dmg`, `.pkg`, `.iso`…), gros fichiers jamais rouverts, dossiers régénérables de projets inactifs (`node_modules`, `.venv`, `build`…), vieilles captures d'écran, symboles de débogage iOS et sauvegardes d'iPhone, vieux journaux, Corbeille, applications non ouvertes depuis un an. L'âge correspond à la **dernière ouverture** connue de Spotlight.
+
+Lecture seule par défaut ; `--clean` affiche la liste détaillée de chaque catégorie puis propose tout / un par un / rien, et **déplace dans la Corbeille**. Jamais touchés : dossiers clients (hors dossiers régénérables), iCloud, Dropbox, Google Drive, applications (signalées seulement).
+
+```bash
+forgotten_files.py                       # rapport
+forgotten_files.py --only big --days 365 --min-size 500
+forgotten_files.py --clean
+```
+
+Pour inclure la Corbeille et les sauvegardes d'iPhone : donner l'« Accès complet au disque » au terminal (Réglages > Confidentialité).
+</details>
+
+<details id="duplicatespy">
+<summary><b><code>duplicates.py</code></b> — 👯 les fichiers en double, comparés par leur contenu</summary>
+
+Même taille, puis même début, puis même contenu complet : deux fichiers différents ne sont **jamais** confondus, quel que soit leur nom. Pour chaque groupe, la copie gardée est la mieux rangée (dossier protégé, hors Téléchargements, nom sans « (1) » ni « copie », la plus ancienne). Résumé des **dossiers copiés en entier**. Ignorés : bibliothèque Photos, dépôts git, dossiers de build, fichiers restés dans iCloud (pas téléchargés pour rien), liens physiques.
+
+```bash
+duplicates.py                            # Téléchargements, Bureau, Documents, Images
+duplicates.py ~/Pictures --min-size 500  # seulement les fichiers de plus de 500 Ko
+duplicates.py --clean                    # tout / un par un / rien, groupe par groupe
+```
+</details>
+
+<details id="app_uninstallpy">
+<summary><b><code>app_uninstall.py</code></b> — 🧹 désinstaller une app <i>et tout ce qu'elle a laissé</i></summary>
+
+Glisser une app dans la Corbeille laisse derrière elle préférences, caches, `Application Support`, conteneurs, cookies, agents de démarrage… parfois des centaines de Mo. Le script les retrouve **par l'identifiant exact de l'app** (jamais par un mot approchant), affiche tout avec la taille, puis envoie à la Corbeille après confirmation. Refuse les apps d'Apple et les apps ouvertes ; renvoie vers `brew uninstall --cask --zap` pour celles installées avec Homebrew ; donne les commandes `sudo` pour les restes système sans les lancer.
+
+```bash
+app_uninstall.py --list                  # les apps les moins utilisées d'abord
+app_uninstall.py "Microsoft Teams" --dry-run
+app_uninstall.py Zoom
+app_uninstall.py --leftovers             # restes d'apps déjà supprimées
+```
+</details>
+
+<details id="startup_itemspy">
+<summary><b><code>startup_items.py</code></b> — 🚦 tout ce qui démarre avec le Mac</summary>
+
+Éléments d'ouverture, apps en arrière-plan, agents et démons, avec l'éditeur (signature) et l'état actif/inactif. Repère les **orphelins** (le programme n'existe plus : app désinstallée) et les programmes non signés.
+
+```bash
+startup_items.py                         # liste (sans les éléments d'Apple)
+startup_items.py --all
+startup_items.py --disable com.example.updater   # un de tes agents, réactivable avec --enable
+startup_items.py --orphans               # tes orphelins à la Corbeille, commandes sudo pour les autres
+```
+</details>
+
+<details id="photo_renamepy">
+<summary><b><code>photo_rename.py</code></b> — 📸 des photos rangées par date de prise de vue</summary>
+
+`IMG_4521.HEIC` → `2026-11-02_14-35-12.heic` : les photos se trient dans l'ordre chronologique partout, quel que soit l'appareil. Les Live Photos et fichiers associés (`.MOV`, `.AAE`, `.XMP`) suivent leur photo ; deux photos à la même seconde reçoivent `_2`. Date lue par exiftool (sinon Spotlight) ; les fichiers sans date de prise de vue sont marqués `~`.
+
+**Simulation par défaut**, et chaque `--apply` écrit un fichier pour **tout annuler**.
+
+```bash
+photo_rename.py ~/Pictures/Vacances                       # aperçu
+photo_rename.py ~/Pictures/Vacances --by-month --apply    # -> 2026/2026-07/…
+photo_rename.py --undo ~/Pictures/Vacances/.photo_rename_20261102-213609.tsv
+```
+</details>
+
+---
+
+## 🛡️ Vie privée et documents sensibles
+
+<details id="id_watermarkpy">
+<summary><b><code>id_watermark.py</code></b> — 🪪 filigraner une pièce d'identité avant de l'envoyer</summary>
+
+Agence immobilière, banque, employeur… Une copie de carte d'identité volée sert à usurper une identité. Le script écrit **en diagonale sur toute la page** à qui la copie est destinée, pour quoi et quand :
+
+> *Copie destinée à Agence Dupont - usage : dossier location - 02/11/2026*
+
+Le résultat est **aplati** (chaque page devient une image : le filigrane ne s'enlève pas en éditant le PDF) et ne garde pas les métadonnées. PDF ou photos (HEIC, JPG, PNG…), recto et verso réunis dans un seul PDF avec `-o`.
+
+```bash
+id_watermark.py cni-recto.heic cni-verso.heic --to "Agence Dupont" --for "dossier location" -o cni-dupont.pdf
+id_watermark.py fiche-paie.pdf --to "Banque X" --opacity 0.4
+id_watermark.py passeport.jpg --text "Copie pour l'hôtel Bellevue - séjour du 3 au 5 mai"
+```
+</details>
+
+<details id="strip_metadatapy">
+<summary><b><code>strip_metadata.py</code></b> — 🕵️ retirer les informations cachées avant de partager</summary>
+
+Une photo de téléphone contient la **position GPS** exacte (souvent celle du domicile), le modèle de l'appareil, la date ; un PDF ou un `.docx` contient l'auteur, la société, le logiciel. Le script écrit une copie `NOM-clean.EXT` sans tout cela, puis **relit la copie pour vérifier** qu'il ne reste rien.
+
+| Type | Comment | Ce qui est gardé |
+|---|---|---|
+| Photos (JPG, HEIC, PNG, TIFF, WEBP, DNG) | exiftool, sans perte | orientation, profil couleur |
+| Vidéos (MOV, MP4, M4V) | ffmpeg, sans réencodage | image et son |
+| PDF | pypdf | pages, signets |
+| Word, Excel, PowerPoint | propriétés du document vidées | contenu |
+
+```bash
+strip_metadata.py --show IMG_1234.HEIC   # juste voir ce qu'elle révèle
+strip_metadata.py photo.heic devis.pdf rapport.docx
+strip_metadata.py ~/Desktop/À\ partager --out ~/Desktop/Propre
+```
+</details>
 
 ---
 
@@ -323,29 +541,13 @@ La première fois, macOS demande d'autoriser le terminal à contrôler Terminal 
 <details id="maintenancesh">
 <summary><b><code>maintenance.sh</code></b> — contrôle hebdomadaire du Mac, avec notification</summary>
 
-Homebrew (paquets à jour, `brew doctor`), environnement Odoo (`odoo_doctor.py`), disque (`disk_report.sh`, alerte au-delà de 85 %), dépôts git (`git_status_all.sh`). Rapport dans `~/Library/Logs/maintenance/`, notification macOS seulement s'il y a quelque chose à faire.
+Homebrew (paquets à jour, `brew doctor`), santé du Mac ([`mac_health.sh`](#mac_healthsh) : batterie, sauvegarde, sécurité, mises à jour macOS), environnement Odoo (`odoo_doctor.py`), disque (`disk_report.sh`, alerte au-delà de 85 %), dépôts git (`git_status_all.sh`). Rapport dans `~/Library/Logs/maintenance/`, notification macOS seulement s'il y a quelque chose à faire.
 
 ```bash
 maintenance.sh                    # maintenant
 maintenance.sh --upgrade          # avec brew upgrade
 maintenance.sh --install 09:00 1  # chaque lundi à 9 h (launchd) ; --uninstall pour arrêter
 ```
-</details>
-
-<details id="forgotten_filespy">
-<summary><b><code>forgotten_files.py</code></b> — vieux fichiers oubliés et non essentiels</summary>
-
-Téléchargements anciens, installeurs (`.dmg`, `.pkg`, `.iso`…), gros fichiers jamais rouverts, dossiers régénérables de projets inactifs (`node_modules`, `.venv`, `build`…), vieilles captures d'écran, symboles de débogage iOS et sauvegardes d'iPhone, vieux journaux, Corbeille, applications non ouvertes depuis un an. L'âge correspond à la **dernière ouverture** connue de Spotlight.
-
-Lecture seule par défaut ; `--clean` affiche la liste détaillée de chaque catégorie puis propose tout / un par un / rien, et **déplace dans la Corbeille** (récupérable). Jamais touchés : dossiers clients (hors dossiers régénérables), iCloud, Dropbox, Google Drive, applications (signalées seulement).
-
-```bash
-forgotten_files.py                       # rapport
-forgotten_files.py --only big --days 365 --min-size 500
-forgotten_files.py --clean
-```
-
-Pour inclure la Corbeille et les sauvegardes d'iPhone : donner l'« Accès complet au disque » au terminal (Réglages > Confidentialité).
 </details>
 
 <details id="disk_reportsh">
@@ -395,8 +597,13 @@ excelTempDir.sh                      # dossier temporaire d'Excel
 
 ## 📝 Notes
 
-- Écrits pour le `/bin/bash` 3.2 et le `python3` 3.9 fournis par macOS : lancez-les avec `bash script.sh` (ou `./script.sh`), pas avec `sh`. Les scripts Python qui ont des dépendances (`odoo_translate.py`, `pdf_tools.py`) sont exécutés par `uv`, qui les installe tout seul.
+- Écrits pour le `/bin/bash` 3.2 et le `python3` 3.9 fournis par macOS : lancez-les avec `bash script.sh` (ou `./script.sh`), pas avec `sh`. Les scripts Python qui ont des dépendances (`odoo_translate.py`, `pdf_tools.py`, `id_watermark.py`, `strip_metadata.py`) sont exécutés par `uv`, qui les installe tout seul.
 - Rien n'est supprimé sans confirmation explicite ; les originaux de fichiers sont conservés ou sauvegardés.
+- Les outils « Mac au quotidien » partagent [`lib/mac_common.py`](lib/mac_common.py) : dossiers protégés, comparaison des chemins accentués, envoi à la Corbeille, questions posées au terminal.
 - Les scripts Odoo partagent [`lib/odoo_projects.py`](lib/odoo_projects.py) : recherche des projets dans `~/Desktop/Indépendant BApps/Clients` et `~/Documents` (modifiable avec `ODOO_PROJECT_ROOTS="dossier1:dossier2"`), lecture des configurations VS Code, bases utilisées.
 
-**Auteur :** [Pierre LAMOTTE](mailto:pl@barracudapps.com) — n'hésitez pas à proposer des améliorations !
+<div align="center">
+
+**Auteur :** [Pierre LAMOTTE](mailto:pl@barracudapps.com) — une idée de script ? Ouvre une issue, elle a peut-être déjà sa place dans la boîte à outils 🧰
+
+</div>
