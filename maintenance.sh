@@ -3,8 +3,9 @@
 ################################################################################
 # Script:       maintenance.sh
 # Description:  Weekly check of the development Mac, in one report:
-#               Homebrew (outdated packages, brew doctor), Odoo environment
-#               (odoo_doctor.py), reclaimable disk space (disk_report.sh),
+#               Homebrew (outdated packages, brew doctor), Mac health
+#               (mac_health.sh: battery, backup, security, macOS updates),
+#               Odoo environment (odoo_doctor.py), reclaimable disk space (disk_report.sh),
 #               git repositories needing attention (git_status_all.sh).
 #               Read-only unless --upgrade. A macOS notification is shown
 #               only when something needs attention. The report is kept in
@@ -108,6 +109,17 @@ doctor_out=$(python3 "$SCRIPTS_DIR/odoo_doctor.py" --quiet 2>&1 | strip)
 doctor_rc=$?
 grep -E '^  [!✗]|^/|^~|projet' <<<"$doctor_out" | out
 (( doctor_rc != 0 )) && problems+=("Odoo: $(tail -n 1 <<<"$doctor_out")")
+
+section "Mac health (mac_health.sh --quiet)"
+health_out=$(bash "$SCRIPTS_DIR/mac_health.sh" --quiet 2>&1 | strip)
+if [[ -n "$health_out" ]]; then
+    echo "$health_out" | out
+    while IFS= read -r line; do
+        problems+=("${line#*  }")
+    done < <(grep -E '^  (❌|⚠️)' <<<"$health_out" | sed 's/ → .*//; s/^  [^ ]* *//' | grep -v '^Disk ')
+else
+    echo "Everything is fine." | out
+fi
 
 section "Disk"
 # "/" is the sealed system volume on macOS: user data lives on the Data volume
