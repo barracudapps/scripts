@@ -9,6 +9,9 @@
 #               python3 lib/odoo_projects.py config DIR [NAME]
 #                   -> JSON {name, program, python, args, database} of a launch
 #                      configuration ("Odoo D-Bug" by default)
+#               python3 lib/odoo_projects.py argv DIR [NAME]
+#                   -> python, program, then each argument, NUL-separated
+#                      (for bash: while IFS= read -r -d '' x; do ...; done)
 # Author:       Pierre LAMOTTE
 # Date:         02 NOV 2026
 ################################################################################
@@ -161,7 +164,7 @@ def config_summary(project: Path, name: str | None = None) -> dict | None:
 
 
 def main(argv: list[str]) -> int:
-    if not argv or argv[0] not in ("projects", "dbs", "config"):
+    if not argv or argv[0] not in ("projects", "dbs", "config", "argv"):
         print(__doc__ or "usage: odoo_projects.py projects|dbs|config DIR [NAME]", file=sys.stderr)
         return 2
     if argv[0] == "projects":
@@ -182,7 +185,11 @@ def main(argv: list[str]) -> int:
         if summary is None:
             print("No Odoo launch configuration found", file=sys.stderr)
             return 1
-        print(json.dumps(summary))
+        if argv[0] == "argv":
+            python = summary["python"] or str(Path(argv[1]).resolve() / ".venv" / "bin" / "python3")
+            sys.stdout.write("\0".join([python, summary["program"], *summary["args"]]) + "\0")
+        else:
+            print(json.dumps(summary))
     return 0
 
 
