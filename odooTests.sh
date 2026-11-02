@@ -3,8 +3,10 @@
 ################################################################################
 # Script: 	odooTests.sh
 # Description: 	Run Odoo tests in multiple threads using cloned databases and filestores.
-# 		Compatible with macOS & Linux (PostgreSQL, rsync, jq required)
-# Usage: 	./odooTests.sh [--threads N] [--loop-until-fail N] [--verbose]
+# 		The Odoo command (program, python interpreter, args, database) is read
+# 		from a launch configuration of .vscode/settings.json (or launch.json).
+# 		Compatible with macOS & Linux (PostgreSQL client tools, rsync, python3)
+# Usage: 	./odooTests.sh [--threads N] [--loop-until-fail N] [--config NAME] [--verbose]
 # Author: 	Pierre LAMOTTE
 # Date: 	17 JUL 2025
 ################################################################################
@@ -13,9 +15,8 @@ NB_THREADS=3
 VERBOSE=false
 MAX_RUNS=0
 BASE_PORT=8069
-SETTINGS_FILE=".vscode/settings.json"
-CONFIG_NAME="Odoo D-Bug"
-BASE_DB="odoo18"
+CONFIG_NAME=""   # default: "Odoo All Tests" if it exists, else "Odoo D-Bug"
+WORKSPACE_DIR=$(pwd)
 
 detect_filestore_base() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -34,58 +35,145 @@ fatal() {
     exit 1
 }
 
+usage() {
+    echo "Usage: ./odooTests.sh [--threads N] [--loop-until-fail N] [--config NAME] [--verbose]"
+    echo "  --threads N          number of parallel Odoo instances (default: $NB_THREADS)"
+    echo "  --loop-until-fail N  repeat the whole run up to N times, stop at the first failure"
+    echo "  --config NAME        launch configuration to use (default: 'Odoo All Tests', else 'Odoo D-Bug')"
+}
+
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         -t|--threads) NB_THREADS="$2"; shift 2 ;;
         --loop-until-fail) MAX_RUNS="$2"; shift 2 ;;
+        -c|--config) CONFIG_NAME="$2"; shift 2 ;;
         -v|--verbose) VERBOSE=true; shift ;;
-        -h|--help)
-            echo "Usage: ./odooTests.sh [--threads N] [--loop-until-fail N] [--verbose]"
-            exit 0 ;;
+        -h|--help) usage; exit 0 ;;
         *) fatal "Unknown option: $1" ;;
     esac
 done
 
-for tool in jq createdb dropdb rsync; do
+[[ "$NB_THREADS" =~ ^[1-9][0-9]*$ ]] || fatal "--threads expects a positive number"
+[[ "$MAX_RUNS" =~ ^[0-9]+$ ]] || fatal "--loop-until-fail expects a number"
+
+for tool in python3 createdb dropdb rsync; do
     command -v "$tool" >/dev/null || fatal "'$tool' is required"
 done
 
-TEMP_JSON=$(mktemp)
-sed '/^[[:space:]]*\/\//d' "$SETTINGS_FILE" > "$TEMP_JSON.1"
-awk '
-    {
-        if (prev ~ /,$/ && $0 ~ /^[[:space:]]*[\]}]/) {
-            sub(/,$/, "", prev)
-        }
-        if (NR > 1) print prev
-        prev = $0
-    }
-    END { print prev }
-' "$TEMP_JSON.1" > "$TEMP_JSON"
-rm "$TEMP_JSON.1"
+# Read the launch configuration (VS Code files are JSON with comments and
+# trailing commas: they are cleaned by a small Python parser, stdlib only).
+# Output: program, python, then one argument per line (NUL separated).
+read_launch_config() {
+    python3 - "$WORKSPACE_DIR" "$CONFIG_NAME" <<'PYEOF'
+import json, re, sys
+from pathlib import Path
 
-ODOO_BIN=$(jq -r '.launch.configurations[] | select(.name == "'"$CONFIG_NAME"'") | .program' "$TEMP_JSON")
-[[ -z "$ODOO_BIN" || "$ODOO_BIN" == "null" ]] && fatal "Missing Odoo program path"
+workspace, wanted = sys.argv[1], sys.argv[2]
 
-ARGS_ARRAY=()
-while IFS= read -r arg; do
-    ARGS_ARRAY+=("$arg")
-done < <(jq -r '.launch.configurations[] | select(.name == "'"$CONFIG_NAME"'") | .args[] | select(startswith("//") | not)' "$TEMP_JSON")
-rm "$TEMP_JSON"
+def load_jsonc(path):
+    text = path.read_text()
+    out, i, in_str = [], 0, False
+    while i < len(text):
+        c = text[i]
+        if in_str:
+            out.append(c)
+            if c == "\\":
+                out.append(text[i + 1]); i += 1
+            elif c == '"':
+                in_str = False
+        elif c == '"':
+            in_str = True; out.append(c)
+        elif text.startswith("//", i):
+            while i < len(text) and text[i] != "\n":
+                i += 1
+            continue
+        elif text.startswith("/*", i):
+            i = text.find("*/", i + 2) + 2
+            continue
+        else:
+            out.append(c)
+        i += 1
+    return json.loads(re.sub(r",(\s*[\]}])", r"\1", "".join(out)))
 
-WORKSPACE_DIR=$(pwd)
-ODOO_BIN="${ODOO_BIN//\$\{workspaceFolder\}/$WORKSPACE_DIR}"
+configs = []
+for name in ("settings.json", "launch.json"):
+    path = Path(workspace, ".vscode", name)
+    if path.is_file():
+        data = load_jsonc(path)
+        launch = data.get("launch", data) if name == "settings.json" else data
+        configs += launch.get("configurations", []) if isinstance(launch, dict) else []
 
-PROCESSED_ARGS_RAW=()
-for arg in "${ARGS_ARRAY[@]}"; do
-    PROCESSED_ARGS_RAW+=("${arg//\$\{workspaceFolder\}/$WORKSPACE_DIR}")
+names = [c.get("name") for c in configs]
+for candidate in ([wanted] if wanted else ["Odoo All Tests", "Odoo D-Bug"]):
+    if candidate in names:
+        config = configs[names.index(candidate)]
+        break
+else:
+    sys.exit(f"Launch configuration not found ({wanted or 'Odoo All Tests / Odoo D-Bug'}). Available: {names}")
+
+def expand(value):
+    return value.replace("${workspaceFolder}", workspace)
+
+sys.stderr.write(f"[INFO] Using launch configuration '{config['name']}'\n")
+fields = [expand(config.get("program", "")), expand(config.get("python", ""))]
+fields += [expand(a) for a in config.get("args", [])]
+sys.stdout.write("\0".join(fields) + "\0")
+PYEOF
+}
+
+CONFIG_FIELDS=()
+while IFS= read -r -d '' field; do
+    CONFIG_FIELDS+=("$field")
+done < <(read_launch_config) || true
+[[ ${#CONFIG_FIELDS[@]} -ge 2 ]] || fatal "Unable to read the launch configuration from .vscode/"
+
+ODOO_BIN="${CONFIG_FIELDS[0]}"
+PYTHON_BIN="${CONFIG_FIELDS[1]}"
+PROCESSED_ARGS_RAW=("${CONFIG_FIELDS[@]:2}")
+
+[[ -f "$ODOO_BIN" ]] || fatal "Odoo program not found: '$ODOO_BIN'"
+# Never rely on odoo-bin's shebang (system python3 has no Odoo dependencies)
+[[ -z "$PYTHON_BIN" && -x "$WORKSPACE_DIR/.venv/bin/python3" ]] && PYTHON_BIN="$WORKSPACE_DIR/.venv/bin/python3"
+[[ -x "$PYTHON_BIN" ]] || fatal "Python interpreter not found: '$PYTHON_BIN' (set \"python\" in the launch configuration)"
+
+# Base database: value of -d / --database in the configuration
+BASE_DB=""
+for ((i = 0; i < ${#PROCESSED_ARGS_RAW[@]}; i++)); do
+    arg="${PROCESSED_ARGS_RAW[$i]}"
+    case "$arg" in
+        -d|--database) BASE_DB="${PROCESSED_ARGS_RAW[$((i + 1))]}" ;;
+        --database=*) BASE_DB="${arg#--database=}" ;;
+        -d?*) BASE_DB="${arg#-d}" ;;
+    esac
 done
+[[ -n "$BASE_DB" ]] || fatal "No database (-d) found in the launch configuration"
+
+if ! printf '%s\n' "${PROCESSED_ARGS_RAW[@]}" | grep -q -- '--stop-after-init'; then
+    echo "[WARN] '--stop-after-init' is missing: the Odoo instances will keep running after the tests." >&2
+fi
 
 FILESTORE_BASE=$(detect_filestore_base)
 
+cleanup_clone() {
+    local db="$1"
+    dropdb --if-exists "$db" 2>/dev/null || echo "[WARN] Failed to drop $db" >&2
+    [[ -n "$db" && -d "$FILESTORE_BASE/$db" ]] && rm -rf "${FILESTORE_BASE:?}/$db"
+}
+
+on_interrupt() {
+    echo "" >&2
+    echo "[INFO] Interrupted: stopping instances and dropping cloned databases..." >&2
+    jobs -p | xargs kill 2>/dev/null
+    wait 2>/dev/null
+    for ((n = 2; n <= NB_THREADS; n++)); do cleanup_clone "${BASE_DB}_thread_$n"; done
+    exit 130
+}
+trap on_interrupt INT TERM
+
 run_test_instance() {
-    INSTANCE_NUM=$1
-    PORT=$((BASE_PORT + INSTANCE_NUM - 1))
+    local INSTANCE_NUM=$1
+    local PORT=$((BASE_PORT + INSTANCE_NUM - 1))
+    local DB_NAME CLONED
 
     if [[ "$INSTANCE_NUM" -eq 1 ]]; then
         DB_NAME="$BASE_DB"
@@ -94,31 +182,41 @@ run_test_instance() {
         DB_NAME="${BASE_DB}_thread_$INSTANCE_NUM"
         CLONED=true
 
-        createdb "$DB_NAME" -T "$BASE_DB" || fatal "Failed to clone DB $DB_NAME"
-        ORIG_FS="$FILESTORE_BASE/$BASE_DB"
-        NEW_FS="$FILESTORE_BASE/$DB_NAME"
-        [ -d "$ORIG_FS" ] && rsync -a "$ORIG_FS/" "$NEW_FS/" || log "[WARN] No filestore to clone for $DB_NAME"
+        dropdb --if-exists "$DB_NAME" 2>/dev/null
+        if ! createdb "$DB_NAME" -T "$BASE_DB"; then
+            echo "[ERROR] Failed to clone DB $DB_NAME (is '$BASE_DB' in use by another Odoo/psql session?)" >&2
+            return 1
+        fi
+        local ORIG_FS="$FILESTORE_BASE/$BASE_DB"
+        local NEW_FS="$FILESTORE_BASE/$DB_NAME"
+        if [ -d "$ORIG_FS" ]; then
+            rsync -a "$ORIG_FS/" "$NEW_FS/"
+        else
+            log "[WARN] No filestore to clone for $DB_NAME"
+        fi
     fi
 
-    ARGS=()
-    USE_NEXT=false
+    local ARGS=() SKIP_NEXT=false val
     for val in "${PROCESSED_ARGS_RAW[@]}"; do
-        if $USE_NEXT; then val="$DB_NAME"; USE_NEXT=false; fi
-        [ "$val" == "-d" ] && USE_NEXT=true
+        if $SKIP_NEXT; then SKIP_NEXT=false; continue; fi
+        case "$val" in
+            -d|--database|-p|--http-port) SKIP_NEXT=true; continue ;;
+            --database=*|-d?*|--http-port=*|-p?*) continue ;;
+        esac
         ARGS+=("$val")
     done
-    ARGS+=("--http-port=$PORT")
+    ARGS+=("--database=$DB_NAME" "--http-port=$PORT")
 
     log "[INFO] Instance $INSTANCE_NUM starting on port $PORT with DB $DB_NAME"
-    "$ODOO_BIN" "${ARGS[@]}"
-    STATUS=$?
+    # Prefix every output line with the instance number
+    "$PYTHON_BIN" "$ODOO_BIN" "${ARGS[@]}" 2>&1 | sed -u "s/^/[t$INSTANCE_NUM] /"
+    local STATUS=${PIPESTATUS[0]}
 
     if $CLONED; then
-        dropdb "$DB_NAME" || echo "[WARN] Failed to drop $DB_NAME"
-        [ -d "$FILESTORE_BASE/$DB_NAME" ] && rm -rf "$FILESTORE_BASE/$DB_NAME"
+        cleanup_clone "$DB_NAME"
     fi
 
-    return $STATUS
+    return "$STATUS"
 }
 
 run_all_instances() {
@@ -140,16 +238,14 @@ run_all_instances() {
 if [[ "$MAX_RUNS" -gt 0 ]]; then
     for ((run=1; run<=MAX_RUNS; run++)); do
         echo "[RUN] $run/$MAX_RUNS"
-        run_all_instances
-        if [[ $? -ne 0 ]]; then
+        if ! run_all_instances; then
             echo "[FAIL] A test failed during run $run"
             exit 1
         fi
     done
     echo "[OK] All $MAX_RUNS runs passed"
 else
-    run_all_instances
-    if [[ $? -eq 0 ]]; then
+    if run_all_instances; then
         echo "[OK] Tests passed on $NB_THREADS thread(s)"
     else
         echo "[FAIL] At least one test failed"
