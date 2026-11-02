@@ -1,163 +1,385 @@
-# Scripts
+<div align="center">
 
-Ce dossier contient des scripts utiles pour diverses tâches (fichiers, médias, développement Odoo), écrits pour macOS (Apple Silicon) et testés avec le `/bin/bash` 3.2 et le `python3` 3.9 fournis par macOS.
+# 🧰 Scripts
 
-## Auteurs
+**Petits outils du quotidien pour développer sur Odoo, traiter des documents et garder un Mac en forme.**
 
-- [Pierre LAMOTTE](mailto:pl@barracudapps.com)
+![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-000000?logo=apple&logoColor=white)
+![Bash](https://img.shields.io/badge/bash-3.2%2B-4EAA25?logo=gnubash&logoColor=white)
+![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+![uv](https://img.shields.io/badge/uv-managed-DE5FE9?logo=astral&logoColor=white)
+![Odoo](https://img.shields.io/badge/Odoo-16%20→%2020-714B67?logo=odoo&logoColor=white)
 
-## Dépendances
+[Je veux…](#-je-veux) · [Démarrage](#-démarrage-rapide) · [Odoo](#-odoo) · [Documents](#-documents-et-médias) · [Système](#%EF%B8%8F-système-et-productivité) · [Notes](#-notes)
+
+</div>
+
+---
+
+## 🔎 Je veux…
+
+| Je veux… | Script | Exemple |
+|---|---|---|
+| démarrer un nouveau projet client Odoo | [`odoo_new_project.sh`](#odoo_new_projectsh) | `odoo_new_project.sh ~/…/Acme/ERP/Odoo 19.0 --init-db --lang fr_FR` |
+| lancer Odoo, mettre à jour un module, tester | [`odoo_run.sh`](#odoo_runsh) | `odoo_run.sh --test my_module` |
+| créer un module propre | [`odoo_module_new.sh`](#odoo_module_newsh) | `odoo_module_new.sh acme_fleet --model acme.vehicle --views` |
+| mettre à jour les traductions d'un module | [`odoo_i18n.sh`](#odoo_i18nsh) | `odoo_i18n.sh acme_fleet -l fr,nl --source fleet` |
+| vérifier que tout l'environnement Odoo va bien | [`odoo_doctor.py`](#odoo_doctorpy) | `odoo_doctor.py --quiet` |
+| sauvegarder / restaurer / cloner une base | [`odoo_db.sh`](#odoo_dbsh) | `odoo_db.sh restore prod.zip acme-copy` |
+| partager une base sans données personnelles | [`odoo_anonymize.sh`](#odoo_anonymizesh) | `odoo_anonymize.sh acme-prod` |
+| montrer Odoo à un prospect | [`odoo_demo_share.sh`](#odoo_demo_sharesh) | `odoo_demo_share.sh` |
+| lancer les tests sur plusieurs bases en parallèle | [`odooTests.sh`](#odootestssh) | `odooTests.sh --threads 4` |
+| rendre un scan interrogeable | [`pdf_ocr.sh`](#pdf_ocrsh) / [`pdf_tools.py scan`](#pdf_toolspy) | `pdf_tools.py scan facture.pdf` |
+| fusionner, découper, faire pivoter des PDF | [`pdf_tools.py`](#pdf_toolspy) | `pdf_tools.py extract contrat.pdf 1-3,7` |
+| alléger des PDF, des images, des vidéos | [`reducePdfSize.sh`](#reducepdfsizesh) · [`convertReduceImg.sh`](#convertreduceimgsh) · [`compressVideo.sh`](#compressvideosh) | `reducePdfSize.sh devis.pdf` |
+| savoir combien de temps j'ai passé par client | [`timesheet_git.sh`](#timesheet_gitsh) | `timesheet_git.sh --since 2026-10-01` |
+| ne rien oublier de commiter ce soir | [`git_status_all.sh`](#git_status_allsh) | `git_status_all.sh --fetch` |
+| libérer de la place | [`disk_report.sh`](#disk_reportsh) | `disk_report.sh --clean` |
+| un contrôle automatique chaque lundi | [`maintenance.sh`](#maintenancesh) | `maintenance.sh --install 09:00` |
+| demander à toutes mes sessions Claude de sauver leur contexte | [`claude_sessions.sh`](#claude_sessionssh) | `claude_sessions.sh save --compact --wait` |
+
+## 🚀 Démarrage rapide
 
 ```bash
-brew install ghostscript ffmpeg imagemagick jpegoptim optipng pngquant webp xmlstarlet uv
-brew install --cask libreoffice   # recursivePdf.sh
+# Outils utilisés par les scripts
+brew install uv ghostscript ffmpeg imagemagick jpegoptim optipng pngquant webp xmlstarlet tesseract tesseract-lang ngrok
+brew install --cask libreoffice postgres-app
+
+# Facultatif : appeler les scripts sans chemin (ajouter à ~/.bash_profile)
+export PATH="$HOME/Documents/scripts:$PATH"
 ```
 
-PostgreSQL (Postgres.app) est nécessaire pour les scripts Odoo qui interrogent une base.
+Tous les scripts affichent leur aide avec `-h` (ou `--help`). Ceux qui posent des questions acceptent aussi le fichier ou le dossier en argument.
 
-## Liste des Scripts
+---
 
-### Fichiers et documents
+## 🟣 Odoo
 
-#### 1. rmDSStore.sh
+Le cycle de vie d'un projet client, de la création à la démo :
 
-- **Description :** Supprime récursivement les fichiers `.DS_Store` (chemins avec espaces gérés). `--dry-run` liste sans supprimer.
-- **Utilisation :** `bash ~/Documents/scripts/rmDSStore.sh [dossier] [--dry-run]` (dossier courant par défaut)
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 05 FEB 2024
+```mermaid
+flowchart LR
+    A[odoo_new_project.sh] --> B[odoo_module_new.sh]
+    B --> C[odoo_run.sh -i / -u]
+    C --> D[odoo_i18n.sh]
+    C --> E[odoo_run.sh --test<br/>odooTests.sh]
+    C --> F[odoo_demo_share.sh]
+    G[(copie de prod)] --> H[odoo_db.sh restore] --> I[odoo_anonymize.sh] --> C
+    J[odoo_doctor.py] -.vérifie.-> C
+```
 
-#### 2. excelTempDir.sh
+Les sources Odoo sont partagées entre tous les projets : un worktree git par couple version + commit dans `~/Documents/Odoo/versions/`, synchronisé par [`odoo_project_sync.py`](#odoo_project_syncpy). Chaque projet décrit sa version dans `.odoo-project.json` et son lancement dans `.vscode/settings.json`, que tous les scripts relisent.
 
-- **Description :** Ouvre le répertoire temporaire d'Excel dans le Finder.
-- **Utilisation :** `bash ~/Documents/scripts/excelTempDir.sh`
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 05 FEB 2024
+<details id="odoo_new_projectsh">
+<summary><b><code>odoo_new_project.sh</code></b> — créer un projet client complet en une commande</summary>
 
-#### 3. recursivePdf.sh
+Copie le template `~/Documents/Odoo/_templates/client-project`, écrit `.odoo-project.json` (réutilise par défaut le worktree `<version>@<hash>` déjà présent, sans nouveau checkout), le nom de base, `.ruff.toml`, `user/`, `.gitignore`, crée la venv uv (psycopg2 compilé contre Postgres.app) et, en option, une base initialisée sans données de démo.
 
-- **Description :** Convertit en PDF (LibreOffice) tous les fichiers `.doc`, `.docx`, `.odt` et `.rtf` d'un dossier et de ses sous-dossiers, puis propose de fusionner les PDF obtenus en un seul.
-- **Utilisation :** `bash ~/Documents/scripts/recursivePdf.sh [dossier]`
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 29 MAY 2024
+```bash
+odoo_new_project.sh "~/Desktop/Indépendant BApps/Clients/Acme/ERP/Odoo" 19.0 --db acme-dev --init-db --lang fr_FR
+odoo_new_project.sh ./Odoo 20.0 --no-enterprise --latest
+```
 
-#### 4. reducePdfSize.sh
+Options : `--db`, `--no-enterprise`, `--latest`, `--python X.Y`, `--init-db`, `--lang`.
+</details>
 
-- **Description :** Réduit la taille d'un PDF, ou de tous les PDF du dossier courant, avec Ghostscript (5 niveaux de qualité). Les originaux sont déplacés dans `PDF_ORIGINALS_<date>/`, sauf si le fichier réduit n'est pas plus petit (il est alors supprimé et l'original conservé).
-- **Utilisation :** `bash ~/Documents/scripts/reducePdfSize.sh [fichier.pdf]`
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 16 SEPT 2024
+<details id="odoo_runsh">
+<summary><b><code>odoo_run.sh</code></b> — lancer Odoo depuis le terminal avec la configuration du projet</summary>
 
-#### 5. pdf_ocr.sh
+Reprend l'interpréteur, `odoo-bin` et les arguments de la configuration VS Code, et remplace les lignes `-i`/`-u`/`--test-tags` selon le mode choisi : plus besoin de modifier `settings.json`.
 
-- **Description :** Rend des PDF scannés interrogeables et copiables (couche texte OCR invisible, OCRmyPDF + Tesseract). Les pages qui contiennent déjà du texte sont conservées, les pages sont redressées. Écrit `<nom>-ocr.pdf`, ou remplace les originaux avec `--replace` (sauvegardés dans `PDF_ORIGINALS_<date>/`). OCRmyPDF est lancé via `uvx` s'il n'est pas installé ; pour le français : `brew install tesseract-lang`.
-- **Utilisation :** `bash ~/Documents/scripts/pdf_ocr.sh [fichier.pdf ...] [-l fra+eng] [--replace]`
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 02 NOV 2026
+```bash
+odoo_run.sh                          # comme le débogueur
+odoo_run.sh -u my_module -p 8070     # mise à jour, à côté du débogueur
+odoo_run.sh --test my_module         # installe/met à jour + tests, puis s'arrête
+odoo_run.sh --test-tags /my_module:TestSale.test_discount
+odoo_run.sh shell -d acme-dev        # shell Odoo
+odoo_run.sh --dry-run --test my_module   # afficher la commande
+```
+</details>
 
-#### 6. updateEpubMetadata.sh
+<details id="odoo_module_newsh">
+<summary><b><code>odoo_module_new.sh</code></b> — créer un module selon les conventions du projet</summary>
 
-- **Description :** Met à jour le titre et les auteurs d'EPUB d'après leur nom de fichier `[Auteur(s)] Titre - Sous-titre.epub` (sous-titre facultatif). Écrit une copie `<nom>_updated.epub` à côté de l'original, conforme à la norme EPUB (`mimetype` en premier, non compressé).
-- **Utilisation :** `bash ~/Documents/scripts/updateEpubMetadata.sh [fichier.epub ...]` (sans argument : un fichier ou tout le dossier courant)
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 02 OCT 2024
+Manifest dans l'ordre habituel, auteur / licence / catégorie repris des modules existants, idiomes de la version : vues `<list>` (18+) ou `<tree>`, droits `security/ir.access.csv` en Odoo 20, `ir.model.access.csv` avant (jamais tous les droits à `base.group_user`). Rien d'autre que ce qui est demandé.
 
-### Médias
+```bash
+odoo_module_new.sh acme_sale_discount --depends sale
+odoo_module_new.sh acme_fleet --model acme.vehicle --views --summary "Company vehicles"
+```
+</details>
 
-#### 7. convertReduceImg.sh
+<details id="odoo_i18nsh">
+<summary><b><code>odoo_i18n.sh</code></b> — toute la chaîne de traduction d'un module</summary>
 
-- **Description :** Convertit (webp, png, jpg) et/ou optimise les images d'un dossier et de ses sous-dossiers. Les fichiers convertis sont écrits à côté de leur source ; l'optimisation sans conversion réécrit le fichier uniquement s'il devient plus petit. Cible de taille en KB ou en % de chaque fichier.
-- **Utilisation :** `bash ~/Documents/scripts/convertReduceImg.sh [dossier]`
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 05 JUL 2024
+Exporte le `.pot` depuis la base (`odoo-bin i18n export` en 19+), crée les `.po` manquants, synchronise et reprend les traductions existantes d'un module source via `odoo_translate.py`, puis compte ce qu'il reste à traduire.
 
-#### 8. compressVideo.sh
+```bash
+odoo_i18n.sh acme_fleet -l fr,nl --source fleet
+#     fr   7 translated messages, 4 untranslated messages.
+```
+</details>
 
-- **Description :** Compresse les vidéos d'un dossier en MP4 : H.264 (compatibilité maximale) ou H.265 matériel (Apple Silicon, plus léger). Redimensionnement (sans agrandissement) et suppression du son en option. Les originaux vont dans `originals/`, sauf si la vidéo compressée n'est pas plus petite.
-- **Utilisation :** `bash ~/Documents/scripts/compressVideo.sh [dossier]`
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 18 SEPT 2024
+<details id="odoo_translatepy">
+<summary><b><code>odoo_translate.py</code></b> — synchroniser les .po et copier des traductions</summary>
 
-### Odoo
+Synchronise les `.po` d'un module avec son `.pot` (en-tête préservé), puis remplit uniquement les traductions vides depuis un module source, cherché dans le projet puis dans le `--addons-path` (worktrees centralisés compris). Une langue régionale (`fr_BE`) se complète avec la langue de base (`fr`). Lancé par `uv`, qui installe `polib`.
 
-#### 9. accessOdooFilestore.sh
+```bash
+odoo_translate.py my_module account
+```
+</details>
 
-- **Description :** Localise le filestore d'une base Odoo locale, l'ouvre (Terminal ou Finder) et permet d'ouvrir ou d'exporter les PDF générés (filtre par nom, 50 plus récents par défaut).
-- **Utilisation :** `bash ~/Documents/scripts/accessOdooFilestore.sh <db_name>`
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 23 JUIN 2025
+<details id="odoo_doctorpy">
+<summary><b><code>odoo_doctor.py</code></b> — diagnostic de l'environnement et de tous les projets</summary>
 
-#### 10. odooTests.sh
+Lecture seule. PostgreSQL, Mailpit, wkhtmltopdf, uv, dépôts centraux ; puis pour chaque projet : worktrees, `odoo-bin`, venv (arm64, psycopg2/lxml/Pillow… importables), `--addons-path`, `--http-interface=::`, base présente. Code de sortie 1 en cas d'erreur.
 
-- **Description :** Lance les tests Odoo sur plusieurs instances en parallèle (bases et filestores clonés, supprimés à la fin ou sur Ctrl-C). La commande (programme, interpréteur `python` de la venv, arguments, base `-d`) est lue dans la configuration de lancement de `.vscode/settings.json` : « Odoo All Tests » par défaut, sinon « Odoo D-Bug ».
-- **Utilisation :** `bash ~/Documents/scripts/odooTests.sh [--threads N] [--loop-until-fail N] [--config NOM] [--verbose]` depuis la racine du projet
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 17 JUIL 2025
+```bash
+odoo_doctor.py                   # tous les projets trouvés
+odoo_doctor.py . --quiet         # le projet courant, avertissements et erreurs seulement
+```
+</details>
 
-#### 11. odooFilter.sh
+<details id="odoo_dbsh">
+<summary><b><code>odoo_db.sh</code></b> — sauvegarder, restaurer, cloner, neutraliser, supprimer</summary>
 
-- **Description :** Génère un domaine Odoo « OU » sur une liste de termes, prêt à coller dans un filtre personnalisé (copié dans le presse-papiers). `-p` entoure chaque terme de parenthèses (codes du type « Nom (ABCD) »).
-- **Utilisation :** `bash ~/Documents/scripts/odooFilter.sh [-f champ] [-o opérateur] [-p] terme1 terme2 ...` ou `... < termes.txt` (un terme par ligne). Par défaut : `partner_ids.name` et `ilike`.
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 02 JAN 2025
+Base et filestore ensemble, au format de sauvegarde d'Odoo et d'Odoo.sh (`dump.sql`, `filestore/`, `manifest.json`). Une restauration est **neutralisée par défaut** (crons, serveurs de mails…). `drop` montre ce qui sera supprimé et demande de retaper le nom.
 
-#### 12. odoo_translate.py
+```bash
+odoo_db.sh list
+odoo_db.sh dump acme-dev
+odoo_db.sh restore ~/Downloads/acme_prod.zip acme-prod-copy
+odoo_db.sh clone acme-dev acme-dev-test
+odoo_db.sh drop acme-dev-test
+```
+</details>
 
-- **Description :** Synchronise les `.po` d'un module avec son `.pot` (en-tête préservé), puis remplit uniquement les traductions vides depuis un module source. Les modules sont cherchés dans le projet puis dans le `--addons-path` de `.vscode/settings.json` (worktrees centralisés compris) ; une langue régionale (ex. `fr_BE`) complète avec la langue de base (`fr`).
-- **Utilisation :** `~/Documents/scripts/odoo_translate.py <module_cible> <module_source>` depuis la racine du projet (exécuté par `uv`, qui installe `polib` automatiquement)
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 04 AOÛT 2025
+<details id="odoo_anonymizesh">
+<summary><b><code>odoo_anonymize.sh</code></b> — copie anonymisée d'une base, à partager sans risque</summary>
 
-#### 13. odoo_project_sync.py
+Clone la base (la source n'est jamais modifiée), lance l'obfuscation native `odoo-bin obfuscate` (Odoo 17+) avec un mot de passe aléatoire jamais conservé, ajoute comptes bancaires, données privées des employés et champs `x_*` des contacts, remplace les identifiants de connexion, supprime les pièces jointes métier (et leurs fichiers), remet le mot de passe admin à `admin` et neutralise. N'affiche que des compteurs.
 
-- **Description :** Centralise les sources Odoo Community/Enterprise dans `~/Documents/Odoo/versions/` (repos bare dans `_repos/`, un worktree git par couple version+commit, partagé entre tous les projets clients). Lit `.odoo-project.json` à la racine d'un projet client, crée les worktrees manquants sur le commit exact demandé, puis patche uniquement `--addons-path`, `program` et l'interpréteur `.venv` dans `.vscode/settings.json`/`launch.json` (le reste du fichier n'est jamais touché). Enterprise est facultatif. Un template de projet client prêt à copier se trouve dans `~/Documents/Odoo/_templates/client-project/` (avec une tâche VS Code qui lance ce script automatiquement à l'ouverture du dossier via `runOn: folderOpen`).
-- **Utilisation :** `python3 ~/Documents/scripts/odoo_project_sync.py [chemin_du_projet]` (par défaut le répertoire courant). Format de `.odoo-project.json` :
-  ```json
-  {
-    "community": { "version": "17.0", "commit": "65ac59feda8e" },
-    "enterprise": { "version": "17.0", "commit": "db0415afefdf" }
-  }
-  ```
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 28 SEPT 2026
+```bash
+odoo_anonymize.sh acme-prod                 # -> acme-prod-anon
+odoo_anonymize.sh acme-prod acme-share --keep-attachments
+```
+</details>
 
-#### 14. odoo_new_project.sh
+<details id="odoo_demo_sharesh">
+<summary><b><code>odoo_demo_share.sh</code></b> — partager une démo par un lien public</summary>
 
-- **Description :** Crée un projet client Odoo à partir du template : `.odoo-project.json` (réutilise par défaut le worktree `<version>@<hash>` le plus récent, sans nouveau checkout ; `--latest` pour le dernier commit), nom de base dans la configuration VS Code, `.ruff.toml`, `user/`, `.gitignore`, worktrees et addons-path (`odoo_project_sync.py`), venv uv avec les dépendances du worktree (psycopg2 compilé contre Postgres.app) et, en option, base initialisée sans données de démo.
-- **Utilisation :** `bash ~/Documents/scripts/odoo_new_project.sh <dossier_projet> <version> [--db NOM] [--no-enterprise] [--latest] [--python X.Y] [--init-db] [--lang fr_FR]`
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 02 NOV 2026
+Ouvre un tunnel ngrok vers l'Odoo local, fige `web.base.url` sur l'URL publique (liens des mails, portail, site), copie le lien, et remet tout en place au Ctrl-C, sans redémarrer Odoo.
 
-#### 15. odoo_doctor.py
+```bash
+odoo_demo_share.sh                    # depuis le dossier du projet, Odoo lancé
+odoo_demo_share.sh --restore -d acme  # après un plantage
+```
+</details>
 
-- **Description :** Diagnostic en lecture seule de l'environnement Odoo (PostgreSQL, Mailpit, wkhtmltopdf, uv, dépôts centraux) et de chaque projet : worktrees du commit demandé, `odoo-bin`, venv (arm64, psycopg2/lxml/Pillow… importables), `--addons-path`, `--http-interface=::`, base présente. Code de sortie 1 en cas d'erreur.
-- **Utilisation :** `python3 ~/Documents/scripts/odoo_doctor.py [dossier_projet ...] [--quiet]` (sans argument : tous les projets trouvés)
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 02 NOV 2026
+<details id="odootestssh">
+<summary><b><code>odooTests.sh</code></b> — tests sur plusieurs instances en parallèle</summary>
 
-#### 16. odoo_db.sh
+Bases et filestores clonés, supprimés à la fin ou au Ctrl-C ; commande lue dans « Odoo All Tests » (sinon « Odoo D-Bug »).
 
-- **Description :** Gère une base Odoo locale avec son filestore : `list` (taille, filestore, version, projet qui l'utilise), `dump` (zip au format Odoo/Odoo.sh : `dump.sql`, `filestore/`, `manifest.json`), `restore` (zip, `.dump` ou `.sql`, **neutralisée par défaut** via `odoo-bin neutralize`), `clone`, `neutralize` et `drop` (détail affiché et nom de la base à retaper pour confirmer).
-- **Utilisation :** `bash ~/Documents/scripts/odoo_db.sh list | dump <db> [fichier.zip] | restore <sauvegarde> <db> [--no-neutralize] [--project DIR] | clone <source> <cible> | neutralize <db> [--project DIR] | drop <db>`
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 02 NOV 2026
+```bash
+odooTests.sh --threads 4
+odooTests.sh --loop-until-fail 10    # traquer un test instable
+```
+</details>
 
-### Système
+<details id="accessodoofilestoresh">
+<summary><b><code>accessOdooFilestore.sh</code></b> — retrouver et ouvrir les PDF générés par Odoo</summary>
 
-#### 17. disk_report.sh
+```bash
+accessOdooFilestore.sh acme-dev      # filtre par nom, ouvrir ou exporter
+```
+</details>
 
-- **Description :** Montre l'espace récupérable : bases Odoo utilisées par aucun projet, filestores orphelins, worktrees `@commit` inutilisés, caches (uv, Homebrew, npm, pip, Xcode), anciennes venvs, Docker. Lecture seule par défaut ; `--clean` supprime élément par élément après confirmation (choix global pour les filestores orphelins, liste affichée avant). `--deep` liste aussi les plus gros dossiers du dossier personnel.
-- **Utilisation :** `bash ~/Documents/scripts/disk_report.sh [--clean] [--deep]`
-- **Auteur :** Pierre LAMOTTE
-- **Date de création :** 02 NOV 2026
+<details id="odoofiltersh">
+<summary><b><code>odooFilter.sh</code></b> — domaine « OU » sur une liste de termes</summary>
 
-### Bibliothèque
+```bash
+odooFilter.sh -f partner_id.name dupont durand martin
+odooFilter.sh -p < codes.txt         # codes du type « Nom (ABCD) »
+# ["|", "|", ("partner_id.name", "ilike", "dupont"), …]   (copié dans le presse-papiers)
+```
+</details>
 
-- **`lib/odoo_projects.py`** : fonctions partagées par les scripts Odoo (recherche des projets dans `~/Desktop/Indépendant BApps/Clients` et `~/Documents`, lecture des configurations VS Code avec commentaires, bases utilisées). Dossiers scannés modifiables avec `ODOO_PROJECT_ROOTS="dossier1:dossier2"`.
+<details id="odoo_project_syncpy">
+<summary><b><code>odoo_project_sync.py</code></b> — worktrees centralisés et chemins VS Code</summary>
 
-## Notes d'utilisation
+Lit `.odoo-project.json`, crée les worktrees manquants sur le commit exact, puis corrige uniquement `--addons-path`, `program` et l'interpréteur `.venv` dans `.vscode/` (le reste n'est jamais touché). Lancé automatiquement à l'ouverture du projet dans VS Code (tâche `runOn: folderOpen` du template). Python 3.9+, bibliothèque standard.
 
-- Les scripts utilisent des fonctionnalités de bash : lancez-les avec `bash script.sh` (ou `./script.sh`), pas avec `sh`.
-- Assurez-vous d'avoir les droits d'exécution pour les scripts. Sinon, vous pouvez les ajouter avec la commande `chmod +x nom_du_script.sh`.
-- Les scripts interactifs acceptent aussi le dossier ou le fichier à traiter en argument, et un `~` saisi au clavier est bien interprété.
+```json
+{
+  "community": { "version": "19.0", "commit": "5b8e4559" },
+  "enterprise": { "version": "19.0", "commit": "e2ec1078" }
+}
+```
+</details>
 
-N'hésitez pas à contribuer en proposant des améliorations ou en ajoutant de nouveaux scripts !
+---
+
+## 📄 Documents et médias
+
+<details id="pdf_toolspy">
+<summary><b><code>pdf_tools.py</code></b> — infos, fusion, découpe, extraction, rotation, scan</summary>
+
+L'original n'est jamais modifié. Pages au format `1-3,5,8-`.
+
+```bash
+pdf_tools.py info contrat.pdf
+pdf_tools.py merge dossier.pdf devis.pdf contrat.pdf annexes.pdf   # un signet par fichier
+pdf_tools.py extract contrat.pdf 1-3,7 -o signature.pdf
+pdf_tools.py remove scan.pdf 2
+pdf_tools.py rotate scan.pdf 90 --pages 2-3
+pdf_tools.py split annexes.pdf --every 2
+pdf_tools.py scan facture.pdf          # OCR + compression -> facture-scan.pdf
+```
+</details>
+
+<details id="pdf_ocrsh">
+<summary><b><code>pdf_ocr.sh</code></b> — rendre des PDF scannés interrogeables</summary>
+
+OCRmyPDF (via `uvx` s'il n'est pas installé) + Tesseract ; pages déjà textuelles conservées, pages redressées.
+
+```bash
+pdf_ocr.sh scan.pdf                 # -> scan-ocr.pdf
+pdf_ocr.sh -l fra+nld --replace     # tout le dossier, originaux sauvegardés
+```
+</details>
+
+<details id="reducepdfsizesh">
+<summary><b><code>reducePdfSize.sh</code></b> — alléger des PDF</summary>
+
+Ghostscript, 5 niveaux de qualité ; l'original n'est remplacé que si le résultat est plus petit.
+
+```bash
+reducePdfSize.sh devis.pdf
+reducePdfSize.sh                    # tout le dossier courant
+```
+</details>
+
+<details id="recursivepdfsh">
+<summary><b><code>recursivePdf.sh</code></b> — convertir des documents Word en PDF (et les fusionner)</summary>
+
+```bash
+recursivePdf.sh ~/Documents/Dossier   # .doc, .docx, .odt, .rtf, sous-dossiers compris
+```
+</details>
+
+<details id="updateepubmetadatash">
+<summary><b><code>updateEpubMetadata.sh</code></b> — titre et auteurs d'EPUB depuis le nom de fichier</summary>
+
+Format `[Auteur(s)] Titre - Sous-titre.epub` ; écrit `<nom>_updated.epub`, conforme à la norme EPUB.
+
+```bash
+updateEpubMetadata.sh "[Jane Doe] Big Book - Part 1.epub"
+```
+</details>
+
+<details id="convertreduceimgsh">
+<summary><b><code>convertReduceImg.sh</code></b> — convertir et optimiser des images</summary>
+
+webp / png / jpg, récursif, cible en KB ou en % de chaque fichier ; l'optimisation sans conversion ne remplace un fichier que s'il devient plus petit.
+
+```bash
+convertReduceImg.sh ~/Pictures/Site
+```
+</details>
+
+<details id="compressvideosh">
+<summary><b><code>compressVideo.sh</code></b> — compresser des vidéos</summary>
+
+H.264 ou H.265 matériel (Apple Silicon), redimensionnement sans agrandissement, son facultatif ; l'original va dans `originals/` seulement si la vidéo compressée est plus petite.
+
+```bash
+compressVideo.sh ~/Movies/Démo
+```
+</details>
+
+---
+
+## ⚙️ Système et productivité
+
+<details id="claude_sessionssh">
+<summary><b><code>claude_sessions.sh</code></b> — parler à toutes les sessions Claude Code ouvertes</summary>
+
+Liste les sessions (`claude agents --json`) et tape une demande dans chaque session **inactive** de Terminal.app ou iTerm2 : sauvegarder son contexte et sa mémoire pour une reprise ultérieure (puis `/compact`), les relire, ou tout autre message. Jamais pendant qu'une session travaille ou affiche une question ; la session qui lance le script est ignorée.
+
+```bash
+claude_sessions.sh list
+claude_sessions.sh save --compact --wait     # avant de tout fermer le soir
+claude_sessions.sh reload                    # le lendemain matin
+claude_sessions.sh send "Lance les tests et résume les échecs" --only acme
+claude_sessions.sh save --dry-run            # voir à qui ce serait envoyé
+```
+
+La première fois, macOS demande d'autoriser le terminal à contrôler Terminal / iTerm (Réglages > Confidentialité > Automatisation).
+</details>
+
+<details id="maintenancesh">
+<summary><b><code>maintenance.sh</code></b> — contrôle hebdomadaire du Mac, avec notification</summary>
+
+Homebrew (paquets à jour, `brew doctor`), environnement Odoo (`odoo_doctor.py`), disque (`disk_report.sh`, alerte au-delà de 85 %), dépôts git (`git_status_all.sh`). Rapport dans `~/Library/Logs/maintenance/`, notification macOS seulement s'il y a quelque chose à faire.
+
+```bash
+maintenance.sh                    # maintenant
+maintenance.sh --upgrade          # avec brew upgrade
+maintenance.sh --install 09:00 1  # chaque lundi à 9 h (launchd) ; --uninstall pour arrêter
+```
+</details>
+
+<details id="disk_reportsh">
+<summary><b><code>disk_report.sh</code></b> — retrouver de la place</summary>
+
+Bases Odoo sans projet, filestores orphelins, worktrees inutilisés, caches (uv, Homebrew, npm, pip, Xcode), anciennes venvs, Docker. Lecture seule par défaut ; `--clean` supprime élément par élément après confirmation.
+
+```bash
+disk_report.sh
+disk_report.sh --clean
+disk_report.sh --deep            # + les plus gros dossiers du dossier personnel
+```
+</details>
+
+<details id="git_status_allsh">
+<summary><b><code>git_status_all.sh</code></b> — tous les dépôts qui demandent de l'attention</summary>
+
+Modifications non commitées, fichiers non suivis, commits à pousser ou à récupérer, stashs, branches sans upstream.
+
+```bash
+git_status_all.sh --fetch
+```
+</details>
+
+<details id="timesheet_gitsh">
+<summary><b><code>timesheet_git.sh</code></b> — temps estimé par jour et par client</summary>
+
+À partir de tes commits dans tous les dépôts : sessions de travail (commits à moins de 2 h d'intervalle) + 30 min avant le premier commit.
+
+```bash
+timesheet_git.sh                              # mois en cours
+timesheet_git.sh --since 2026-10-01 --until 2026-10-31 --client acme --details
+timesheet_git.sh --since "last monday" --csv > semaine.csv
+```
+</details>
+
+<details>
+<summary><b><code>rmDSStore.sh</code></b> · <b><code>excelTempDir.sh</code></b> — petits utilitaires</summary>
+
+```bash
+rmDSStore.sh ~/Projets --dry-run     # .DS_Store récursifs
+excelTempDir.sh                      # dossier temporaire d'Excel
+```
+</details>
+
+---
+
+## 📝 Notes
+
+- Écrits pour le `/bin/bash` 3.2 et le `python3` 3.9 fournis par macOS : lancez-les avec `bash script.sh` (ou `./script.sh`), pas avec `sh`. Les scripts Python qui ont des dépendances (`odoo_translate.py`, `pdf_tools.py`) sont exécutés par `uv`, qui les installe tout seul.
+- Rien n'est supprimé sans confirmation explicite ; les originaux de fichiers sont conservés ou sauvegardés.
+- Les scripts Odoo partagent [`lib/odoo_projects.py`](lib/odoo_projects.py) : recherche des projets dans `~/Desktop/Indépendant BApps/Clients` et `~/Documents` (modifiable avec `ODOO_PROJECT_ROOTS="dossier1:dossier2"`), lecture des configurations VS Code, bases utilisées.
+
+**Auteur :** [Pierre LAMOTTE](mailto:pl@barracudapps.com) — n'hésitez pas à proposer des améliorations !
