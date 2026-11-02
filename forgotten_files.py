@@ -30,26 +30,29 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import subprocess
 import sys
 import time
-import unicodedata
 from datetime import datetime
 from pathlib import Path
 
-HOME = Path.home()
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from mac_common import (  # noqa: E402
+    BOLD,
+    DIM,
+    HOME,
+    NC,
+    YELLOW,
+    choose_and_trash,
+    human,
+    is_protected,
+    short,
+    size_of,
+)
+
 NOW = time.time()
 DAY = 86400
-BOLD, DIM, YELLOW, NC = "\033[1m", "\033[2m", "\033[93m", "\033[0m"
 
-PROTECTED = [
-    HOME / "Desktop" / "Indépendant BApps" / "Clients",
-    HOME / "Library" / "Mobile Documents",      # iCloud Drive
-    HOME / "Library" / "CloudStorage",          # Dropbox, Google Drive, OneDrive...
-    HOME / "Dropbox",
-    HOME / "Google Drive",
-]
 REBUILDABLE = {"node_modules", ".venv", "venv", "Pods", ".dart_tool", ".gradle", ".next", ".nuxt",
                "build", "dist", "target"}
 MIN_REBUILDABLE_SIZE = 10 * 1024 * 1024
@@ -63,46 +66,6 @@ SKIP_WALK = {"Library", ".Trash", "node_modules", ".git", ".venv", "Applications
 class Item:
     def __init__(self, path: Path, size: int, age_days: float, note: str = ""):
         self.path, self.size, self.age_days, self.note = path, size, age_days, note
-
-
-def human(size: float) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if size < 1024 or unit == "GB":
-            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
-        size /= 1024
-    return ""
-
-
-def nfc(path: Path) -> str:
-    # macOS returns decomposed accents (NFD) from the file system: compare in NFC
-    return unicodedata.normalize("NFC", str(path))
-
-
-def is_protected(path: Path, allow_rebuildable: bool = False) -> bool:
-    text = nfc(path)
-    for root in PROTECTED:
-        root_text = nfc(root)
-        if text == root_text or text.startswith(root_text + os.sep):
-            return not allow_rebuildable
-    return False
-
-
-def size_of(path: Path) -> int:
-    try:
-        if path.is_symlink():
-            return 0
-        if path.is_file():
-            return path.stat().st_size
-        total = 0
-        for dirpath, _dirs, files in os.walk(path, onerror=lambda e: None):
-            for name in files:
-                try:
-                    total += os.lstat(os.path.join(dirpath, name)).st_size
-                except OSError:
-                    pass
-        return total
-    except OSError:
-        return 0
 
 
 def last_used_days(path: Path) -> float:
@@ -204,7 +167,7 @@ def cat_projects(args) -> list[Item]:
                 for name in heavy:
                     target = current / name
                     size = size_of(target)
-                    if size >= MIN_REBUILDABLE_SIZE and not is_protected(target, allow_rebuildable=True):
+                    if size >= MIN_REBUILDABLE_SIZE:
                         items.append(Item(target, size, inactive_days, "project inactive, rebuildable"))
             dirs[:] = [d for d in dirs if d not in REBUILDABLE and d not in SKIP_WALK and not d.startswith(".")]
     return items
@@ -305,51 +268,6 @@ CATEGORIES = [
 
 # ------------------------------------------------------------------ cleaning
 
-def move_to_trash(path: Path) -> bool:
-    """Move to the user Trash, keeping the name unique (recoverable from the Finder)."""
-    trash = HOME / ".Trash"
-    target = trash / path.name
-    counter = 2
-    while target.exists() or target.is_symlink():
-        target = trash / f"{path.stem} {counter}{path.suffix}"
-        counter += 1
-    try:
-        shutil.move(str(path), str(target))
-        return True
-    except OSError as exc:
-        print(f"    could not move {path}: {type(exc).__name__}")
-        return False
-
-
-def ask(prompt: str) -> str:
-    try:
-        with open("/dev/tty") as tty:
-            sys.stdout.write(prompt)
-            sys.stdout.flush()
-            return tty.readline().strip().lower()
-    except OSError:
-        return ""
-
-
-def clean(items: list[Item]) -> int:
-    choice = ask(f"    -> Move to the Trash: [a]ll {len(items)} item(s), [e]ach one, [N]one? ")
-    freed = 0
-    for item in items:
-        if choice == "e":
-            if ask(f"    {item.path} ({human(item.size)})? (y/N) ") != "y":
-                continue
-        elif choice != "a":
-            return freed
-        if move_to_trash(item.path):
-            freed += item.size
-    return freed
-
-
-def short(path: Path) -> str:
-    text = str(path)
-    return "~" + text[len(str(HOME)):] if text.startswith(str(HOME)) else text
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Find old, forgotten and non-essential files.")
     parser.add_argument("--clean", action="store_true", help="move selected items to the Trash")
@@ -377,7 +295,7 @@ def main() -> int:
         if cleanable:
             grand_total += total
             if args.clean:
-                freed += clean(items)
+                freed += choose_and_trash([(i.path, i.size) for i in items])
 
     print(f"\n{BOLD}Reclaimable (categories that can be cleaned): {human(grand_total)}{NC}")
     if args.clean:
